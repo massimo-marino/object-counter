@@ -21,7 +21,7 @@ public:
           name_(name),
           s_(std::move(s))
   {
-    std::cout << "classWithObjectCounter: CTOR CALLED for "
+    std::cout << "classWithObjectCounter:  CTOR CALLED for "
               << name_
               << " @0x"
               << this

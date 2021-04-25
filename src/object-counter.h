@@ -22,17 +22,20 @@ namespace object_counter
 //
 // counterType, the type of the counters, MUST be unsigned
 // counterType's type is unsigned long by default
+using countersMutex = std::recursive_mutex;
+
 template <typename T, typename counterType = unsigned long>
 class objectCounter
 {
 public:
+//  using countersMutex = std::mutex;
   using objectCounters = std::tuple<counterType, counterType, counterType, bool>;
   using copyMoveCounters = std::tuple<counterType, counterType, counterType, counterType>;
 
   // default ctor
   objectCounter() noexcept(false)
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     ++objectsCreated_;
     ++objectsAlive_;
     if ( checkCounterOverflow() )
@@ -44,7 +47,7 @@ public:
   // copy ctor
   objectCounter([[maybe_unused]] const objectCounter& rhs) noexcept(false)
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     ++copyConstructions_;
     ++objectsCreated_;
     ++objectsAlive_;
@@ -57,7 +60,7 @@ public:
   // copy assignment operator=
   objectCounter& operator=([[maybe_unused]] const objectCounter& rhs) noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     ++copyAssignments_;
     return *this;
   }
@@ -65,7 +68,7 @@ public:
   // move ctor
   objectCounter([[maybe_unused]] objectCounter&& rhs) noexcept(false)
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     ++moveConstructions_;
     ++objectsCreated_;
     ++objectsAlive_;
@@ -78,7 +81,7 @@ public:
   // move assignment operator=
   objectCounter& operator=([[maybe_unused]] objectCounter&& rhs) noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     ++moveAssignments_;
     return *this;
   }
@@ -87,7 +90,7 @@ public:
   virtual
   ~objectCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     if (   (0 == objectsAlive_) // must be non-zero since we destroy an object
            || (objectsCreated_ != (objectsAlive_ + objectsDestroyed_)) )
     {
@@ -104,7 +107,7 @@ public:
   counterType
   getObjectsCreatedCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return objectsCreated_;
   }
 
@@ -112,7 +115,7 @@ public:
   counterType
   getObjectsAliveCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return objectsAlive_;
   }
 
@@ -120,7 +123,7 @@ public:
   counterType
   getObjectsDestroyedCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return objectsDestroyed_;
   }
 
@@ -128,7 +131,7 @@ public:
   bool
   getTooManyDestructionsFlag() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return tooManyDestructions_;
   }
 
@@ -136,7 +139,7 @@ public:
   counterType
   getCopyConstructionsCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return copyConstructions_;
   }
 
@@ -144,7 +147,7 @@ public:
   counterType
   getCopyAssignmentsCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return copyAssignments_;
   }
 
@@ -152,7 +155,7 @@ public:
   counterType
   getMoveConstructionsCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return moveConstructions_;
   }
 
@@ -160,7 +163,7 @@ public:
   counterType
   getMoveAssignmentsCounter() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return moveAssignments_;
   }
 
@@ -168,7 +171,7 @@ public:
   auto
   getObjectCounters() noexcept -> objectCounters
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return std::make_tuple(objectsCreated_, objectsAlive_, objectsDestroyed_, tooManyDestructions_);
   }
 
@@ -176,7 +179,7 @@ public:
   auto
   getCopyMoveCounters() noexcept -> copyMoveCounters
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     return std::make_tuple(copyConstructions_, copyAssignments_, moveConstructions_, moveAssignments_);
   }
 
@@ -184,7 +187,7 @@ public:
   void
   resetCounters() noexcept
   {
-    std::lock_guard<std::mutex> lg(mtx_);
+    std::lock_guard<countersMutex> lg(mtx_);
     objectsCreated_ = 0;
     objectsAlive_ = 0;
     objectsDestroyed_ = 0;
@@ -199,6 +202,7 @@ public:
   bool
   isLeakPossible () noexcept
   {
+    std::lock_guard<countersMutex> lg(mtx_);
     return (objectsAlive_ > 0);
   }
 
@@ -206,6 +210,7 @@ public:
   void
   reportCounters(const std::string& className = "class counters") noexcept
   {
+    std::lock_guard<countersMutex> lg(mtx_);
     std::cout << "\n" << className << " object counters:"
               << "\n--> objects created:       "
               << objectsCreated_
@@ -224,14 +229,14 @@ public:
               << "\n--> too many destructions: "
               << tooManyDestructions_
               << "\n--> memory leak possible:  "
-              << ((isLeakPossible()) ? "true" : "false")
+              << ((isLeakPossibleInternal()) ? "true" : "false")
               << std::endl << std::endl;
   }
 
 protected:
   // in a multithreaded process threads can allocate objects of the same class,
   // so static data must be protected with a mutex
-  static std::mutex mtx_;
+  static countersMutex mtx_;
   static counterType objectsCreated_;
   static counterType objectsAlive_;
   static counterType objectsDestroyed_;
@@ -244,6 +249,13 @@ protected:
 private:
   static constexpr
   bool
+  isLeakPossibleInternal () noexcept
+  {
+    return (objectsAlive_ > 0);
+  }
+
+  static constexpr
+  bool
   checkCounterOverflow() noexcept
   {
     return ( (0 == objectsAlive_) ||
@@ -252,7 +264,7 @@ private:
 };  // class objectCounter
 
 template <typename T, typename TC>
-std::mutex objectCounter<T, TC>::mtx_ {};
+countersMutex objectCounter<T, TC>::mtx_ {};
 
 template <typename T, typename TC>
 TC objectCounter<T, TC>::objectsCreated_ {0};
