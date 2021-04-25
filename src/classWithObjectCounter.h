@@ -28,7 +28,7 @@ public:
               << std::endl;
   }
 
-  virtual ~classWithObjectCounter();
+  ~classWithObjectCounter();
 
   // copy ctor
   classWithObjectCounter([[maybe_unused]] const classWithObjectCounter& rhs) noexcept(false)

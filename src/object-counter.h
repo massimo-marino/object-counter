@@ -10,6 +10,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 namespace object_counter
 {
+using countersMutex = std::recursive_mutex;
+
 //
 // See:
 // https://en.wikipedia.org/wiki/Curiously_recurring_template_pattern
@@ -22,13 +24,10 @@ namespace object_counter
 //
 // counterType, the type of the counters, MUST be unsigned
 // counterType's type is unsigned long by default
-using countersMutex = std::recursive_mutex;
-
 template <typename T, typename counterType = unsigned long>
 class objectCounter
 {
 public:
-//  using countersMutex = std::mutex;
   using objectCounters = std::tuple<counterType, counterType, counterType, bool>;
   using copyMoveCounters = std::tuple<counterType, counterType, counterType, counterType>;
 
@@ -84,23 +83,6 @@ public:
     std::lock_guard<countersMutex> lg(mtx_);
     ++moveAssignments_;
     return *this;
-  }
-
-  // objects should never be removed through pointers of this type
-  virtual
-  ~objectCounter() noexcept
-  {
-    std::lock_guard<countersMutex> lg(mtx_);
-    if (   (0 == objectsAlive_) // must be non-zero since we destroy an object
-           || (objectsCreated_ != (objectsAlive_ + objectsDestroyed_)) )
-    {
-      tooManyDestructions_ = true;
-    }
-    else
-    {
-      --objectsAlive_;
-      ++objectsDestroyed_;
-    }
   }
 
   static
@@ -234,19 +216,33 @@ public:
   }
 
 protected:
-  // in a multithreaded process threads can allocate objects of the same class,
-  // so static data must be protected with a mutex
-  static countersMutex mtx_;
-  static counterType objectsCreated_;
-  static counterType objectsAlive_;
-  static counterType objectsDestroyed_;
-  static counterType copyConstructions_;
-  static counterType copyAssignments_;
-  static counterType moveConstructions_;
-  static counterType moveAssignments_;
-  static bool tooManyDestructions_;
+  // objects should never be removed through pointers of this type
+  ~objectCounter() noexcept
+  {
+    std::lock_guard<countersMutex> lg(mtx_);
+    if (   (0 == objectsAlive_) // must be non-zero since we destroy an object
+           || (objectsCreated_ != (objectsAlive_ + objectsDestroyed_)) ) {
+      tooManyDestructions_ = true;
+      return;
+    }
+
+    --objectsAlive_;
+    ++objectsDestroyed_;
+  }
 
 private:
+  // in a multithreaded process threads can allocate objects of the same class,
+  // so static data must be protected with a mutex
+  static inline countersMutex mtx_ {};
+  static inline counterType objectsCreated_ {0};
+  static inline counterType objectsAlive_ {0};
+  static inline counterType objectsDestroyed_ {0};
+  static inline counterType copyConstructions_ {0};
+  static inline counterType copyAssignments_ {0};
+  static inline counterType moveConstructions_ {0};
+  static inline counterType moveAssignments_ {0};
+  static inline bool tooManyDestructions_ {false};
+
   static constexpr
   bool
   isLeakPossibleInternal () noexcept
@@ -262,32 +258,5 @@ private:
              (objectsCreated_ != (objectsAlive_ + objectsDestroyed_)) );
   }
 };  // class objectCounter
-
-template <typename T, typename TC>
-countersMutex objectCounter<T, TC>::mtx_ {};
-
-template <typename T, typename TC>
-TC objectCounter<T, TC>::objectsCreated_ {0};
-
-template <typename T, typename TC>
-TC objectCounter<T, TC>::objectsAlive_ {0};
-
-template <typename T, typename TC>
-TC objectCounter<T, TC>::objectsDestroyed_ {0};
-
-template <typename T, typename TC>
-TC objectCounter<T, TC>::copyConstructions_ {0};
-
-template <typename T, typename TC>
-TC objectCounter<T, TC>::copyAssignments_ {0};
-
-template <typename T, typename TC>
-TC objectCounter<T, TC>::moveConstructions_ {0};
-
-template <typename T, typename TC>
-TC objectCounter<T, TC>::moveAssignments_ {0};
-
-template <typename T, typename TC>
-bool objectCounter<T, TC>::tooManyDestructions_ {false};
 
 }  // namespace object_counter
